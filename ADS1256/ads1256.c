@@ -333,6 +333,49 @@ see datasheet ad1256.pdf p31
 *********************************************************************************************************
 */
 
+
+static void ADS1256_Config(void)
+{
+
+		ADS1256_WaitDRDY();
+
+		// Status register : ORDER = 0, Auto-Calibration --> ACAL = 1, buffer on --> BUFEN = 1
+		uint8_t bufferOn = 0x32;
+		ADS1256_WriteReg(REG_STATUS, bufferOn);
+		ADS1256_WaitDRDY();
+		// Multiplexer : select AIN0 positive channel and disabled negative channel
+		uint8_t muxSelectChannel = 0x08;
+		ADS1256_WriteReg(REG_MUX, muxSelectChannel );
+
+
+		// ADCON : no CLKOUT, no control current, gain 1
+		uint8_t adcon = 0x00;
+		ADS1256_WriteReg(REG_ADCON, adcon);
+
+		// data rate : 10 SPS
+		uint8_t sps = 0x23;
+		ADS1256_WriteReg(REG_DRATE, sps);
+}
+
+/*
+*********************************************************************************************************
+*	name: ADS1256_WriteReg
+*	function: Write the corresponding register
+*	parameter: _RegID: register  ID
+*			 _RegValue: register Value
+*	The return value: NULL
+*********************************************************************************************************
+*/
+static void ADS1256_WriteReg(uint8_t _RegID, uint8_t _RegValue)
+{
+	CS_0();	/* SPI  cs  = 0 */
+	ADS1256_Send8Bit(CMD_WREG | _RegID);	/*Write command register */
+	ADS1256_Send8Bit(0x00);		/*Write the register number */
+
+	ADS1256_Send8Bit(_RegValue);	/*send register value */
+	CS_1();	/* SPI   cs = 1 */
+}
+
 // -----------------------------------------------------------
 
 int  main()
@@ -362,7 +405,7 @@ int  main()
 
 		id = ADS1256_ReadChipID();
    	printf("\r\n");
-   	printf("ID=\r\n");
+   	printf("ID=\r");
 		if (id != 3)
 		{
 			printf("Error, ASD1256 Chip ID = 0x%02X\r\n", (int)id);
@@ -371,5 +414,16 @@ int  main()
 		{
 			printf("Ok, ASD1256 Chip ID = 0x%02X\r\n", (int)id);
 		}
+
+		ADS1256_Config();
+		readBufferReg = ADS1256_ReadReg(REG_STATUS);
+		printf("register status value 0x%02X\r\n", (int)readBufferReg);
+		readMuxReg = ADS1256_ReadReg(REG_MUX);
+		printf("register mux value 0x%02X\r\n", (int)readMuxReg);
+		readAdconReg = ADS1256_ReadReg(REG_ADCON);
+		printf("register ADCON value 0x%02X\r\n", (int)readAdconReg);
+		readDatarateReg = ADS1256_ReadReg(REG_DRATE);
+		printf("register datarate value 0x%02X\r\n", (int)readDatarateReg);
+
 
 }
