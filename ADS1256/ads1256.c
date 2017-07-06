@@ -362,7 +362,7 @@ int  main()
 
 		id = ADS1256_ReadChipID();
    	printf("\r\n");
-   	printf("ID=\r");
+   	printf("ID=\r\n");
 		if (id != 3)
 		{
 			printf("Error, ASD1256 Chip ID = 0x%02X\r\n", (int)id);
