@@ -34,6 +34,7 @@ RPI_V2_GPIO_P1_13->RPI_GPIO_P1_13
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <time.h>
 
 //CS      -----   SPICS
 //DIN     -----   MOSI
@@ -323,39 +324,7 @@ static void ADS1256_DelayDATA(void)
 	bsp_DelayUS(10);	/* The minimum time delay 6.5us */
 }
 
-/*
-*********************************************************************************************************
-*	name: ADS1256_Config
-*	function: configurate the chip
-*	parameter: NULL
-*	The return value: NULL
-see datasheet ad1256.pdf p31
-*********************************************************************************************************
-*/
 
-
-static void ADS1256_Config(void)
-{
-
-		ADS1256_WaitDRDY();
-
-		// Status register : ORDER = 0, Auto-Calibration --> ACAL = 1, buffer on --> BUFEN = 1
-		uint8_t bufferOn = 0x32;
-		ADS1256_WriteReg(REG_STATUS, bufferOn);
-		ADS1256_WaitDRDY();
-		// Multiplexer : select AIN0 positive channel and disabled negative channel
-		uint8_t muxSelectChannel = 0x08;
-		ADS1256_WriteReg(REG_MUX, muxSelectChannel );
-
-
-		// ADCON : no CLKOUT, no control current, gain 1
-		uint8_t adcon = 0x00;
-		ADS1256_WriteReg(REG_ADCON, adcon);
-
-		// data rate : 10 SPS
-		uint8_t sps = 0x23;
-		ADS1256_WriteReg(REG_DRATE, sps);
-}
 
 /*
 *********************************************************************************************************
@@ -376,7 +345,108 @@ static void ADS1256_WriteReg(uint8_t _RegID, uint8_t _RegValue)
 	CS_1();	/* SPI   cs = 1 */
 }
 
+/*
+*********************************************************************************************************
+*	name: ADS1256_ReadData
+*	function: read ADC value
+*	parameter: NULL
+*	The return value:  NULL
+*********************************************************************************************************
+*/
+static int32_t ADS1256_ReadData(void)
+{
+	uint32_t read = 0;
+  static uint8_t buf[3];
+
+	CS_0();	/* SPI   cs = 0 */
+
+	ADS1256_Send8Bit(CMD_RDATA);	/* read ADC command  */
+
+	ADS1256_DelayDATA();	/*delay time  */
+
+	/*Read the sample results 24bit*/
+    buf[0] = ADS1256_Recive8Bit();
+    buf[1] = ADS1256_Recive8Bit();
+    buf[2] = ADS1256_Recive8Bit();
+
+    read = ((uint32_t)buf[0] << 16) & 0x00FF0000;
+    read |= ((uint32_t)buf[1] << 8);  /* Pay attention to It is wrong   read |= (buf[1] << 8) */
+    read |= buf[2];
+
+	CS_1();	/* SPIƬѡ = 1 */
+
+	/* Extend a signed number*/
+    if (read & 0x800000)
+    {
+	    read |= 0xFF000000;
+    }
+
+	return (int32_t)read;
+}
+
 // -----------------------------------------------------------
+/*
+*********************************************************************************************************
+*	name: ADS1256_Config
+*	function: configurate the chip
+*	parameter: NULL
+*	The return value: NULL
+see datasheet ad1256.pdf p31
+*********************************************************************************************************
+*/
+/*
+*********************************************************************************************************
+*	name: ADS1256_Recive8Bit
+*	function: SPI bus receive function
+*	parameter: NULL
+*	The return value: NULL
+*********************************************************************************************************
+*/
+static uint8_t ADS1256_Receive8Bit(void)
+{
+	uint8_t read = 0;
+	read = bcm2835_spi_transfer(0xff);
+	return read;
+}
+
+/*
+*********************************************************************************************************
+*	name: ADS1256_WriteCmd
+*	function: Sending a single byte order
+*	parameter: _cmd : command
+*	The return value: NULL
+*********************************************************************************************************
+*/
+static void ADS1256_WriteCmd(uint8_t _cmd)
+{
+	CS_0();	/* SPI   cs = 0 */
+	ADS1256_Send8Bit(_cmd);
+	CS_1();	/* SPI  cs  = 1 */
+}
+
+static void ADS1256_Config(void)
+{
+
+		ADS1256_WaitDRDY();
+
+		// Status register : ORDER = 0, Auto-Calibration --> ACAL = 1, buffer on --> BUFEN = 1
+		uint8_t bufferOn = 0x32;
+		ADS1256_WriteReg(REG_STATUS, bufferOn);
+		//ADS1256_WaitDRDY();
+		// Multiplexer : select AIN0 positive channel and disabled negative channel
+		uint8_t muxSelectChannel = 0x78;
+		ADS1256_WriteReg(REG_MUX, muxSelectChannel );
+
+
+		// ADCON : no CLKOUT, no control current, gain 1
+		uint8_t adcon = 0x00;
+		ADS1256_WriteReg(REG_ADCON, adcon);
+
+		// data rate : 10 SPS
+		//uint8_t sps = 0x23;
+		uint8_t sps = s_tabDataRate[ADS1256_500SPS];
+		ADS1256_WriteReg(REG_DRATE, sps);
+}
 
 int  main()
 {
@@ -388,6 +458,9 @@ int  main()
   	int32_t adc[8];
 		int32_t volt[8];
 		uint8_t i;
+		uint32_t sample_counter;
+		time_t before,after;
+		double elapsedTime;
 		uint8_t ch_num;
 		int32_t iTemp;
 		uint8_t buf[3];
@@ -402,6 +475,10 @@ int  main()
     bcm2835_gpio_fsel(DRDY, BCM2835_GPIO_FSEL_INPT);
     bcm2835_gpio_set_pud(DRDY, BCM2835_GPIO_PUD_UP);
 
+		// RST_0();
+		// bsp_DelayUS(5);
+		// RST_1();
+		// bsp_DelayUS(100);
 
 		id = ADS1256_ReadChipID();
    	printf("\r\n");
@@ -415,15 +492,56 @@ int  main()
 			printf("Ok, ASD1256 Chip ID = 0x%02X\r\n", (int)id);
 		}
 
+		// ADS1256 configuration
 		ADS1256_Config();
-		readBufferReg = ADS1256_ReadReg(REG_STATUS);
+		/*readBufferReg = ADS1256_ReadReg(REG_STATUS);
 		printf("register status value 0x%02X\r\n", (int)readBufferReg);
 		readMuxReg = ADS1256_ReadReg(REG_MUX);
 		printf("register mux value 0x%02X\r\n", (int)readMuxReg);
 		readAdconReg = ADS1256_ReadReg(REG_ADCON);
 		printf("register ADCON value 0x%02X\r\n", (int)readAdconReg);
 		readDatarateReg = ADS1256_ReadReg(REG_DRATE);
-		printf("register datarate value 0x%02X\r\n", (int)readDatarateReg);
+		printf("register datarate value 0x%02X\r\n", (int)readDatarateReg);*/
 
+		// read the channel 0 one shot
+		//before = time(0);
+
+		ADS1256_WriteCmd(CMD_WAKEUP);
+		bsp_DelayUS(5);
+		ADS1256_WriteCmd(CMD_SYNC);
+		bsp_DelayUS(5);
+		ADS1256_WriteCmd(CMD_RDATAC);
+
+		for (sample_counter = 0 ; sample_counter<2500 ; sample_counter++)
+		{
+			//ADS1256_Send8Bit(CMD_WAKEUP);
+			while (DRDY_IS_LOW());
+			while (!DRDY_IS_LOW());
+			//iTemp = ADS1256_ReadData();
+			//buf[0] = ((uint32_t)iTemp >> 16) & 0xFF;
+			//buf[1] = ((uint32_t)iTemp >> 8) & 0xFF;
+			//buf[2] = ((uint32_t)iTemp >> 0) & 0xFF;
+			CS_0();
+			buf[0] = ADS1256_Receive8Bit();
+			buf[1] = ADS1256_Receive8Bit();
+			buf[2] = ADS1256_Receive8Bit();
+			CS_1();
+			iTemp = (buf[0] << 16) + (buf[1] << 8) + buf[2];
+			printf("raw value channel = 0x%02X%02X%02X, %8ld\n", (int)buf[0],(int)buf[1], (int)buf[2], (long)iTemp);
+			//printf("%8ld\n",(long)(iTemp));
+
+		}
+		ADS1256_WriteCmd(CMD_SDATAC);
+
+		//after = time (0);
+
+		//elapsedTime = after - before;
+		//printf ( "diff time : %lf\n" ,elapsedTime);
+
+
+/*
+		printf ("%x", iTemp);
+		iTemp = (iTemp * 0.000596);
+		printf("value channel : %.8f mV \n",(long)iTemp);*/
 
 }
