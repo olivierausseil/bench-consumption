@@ -36,15 +36,6 @@ RPI_V2_GPIO_P1_13->RPI_GPIO_P1_13
 #include <errno.h>
 #include <time.h>
 
-//CS      -----   SPICS
-//DIN     -----   MOSI
-//DOUT  -----   MISO
-//SCLK   -----   SCLK
-//DRDY  -----   ctl_IO     data  starting
-//RST     -----   ctl_IO     reset
-
-
-
 #define  DRDY  RPI_GPIO_P1_11         //P0
 #define  RST  RPI_GPIO_P1_12     //P1
 #define	SPICS	RPI_GPIO_P1_15	//P3
@@ -57,18 +48,13 @@ RPI_V2_GPIO_P1_13->RPI_GPIO_P1_13
 #define RST_1() 	bcm2835_gpio_write(RST,HIGH);
 #define RST_0() 	bcm2835_gpio_write(RST,LOW);
 
-
-
 /* Unsigned integer types  */
 #define uint8_t unsigned char
 #define uint16_t unsigned short
 #define uint32_t unsigned long
 
 
-
-
 typedef enum {FALSE = 0, TRUE = !FALSE} bool;
-
 
 /* gain channel� */
 typedef enum
@@ -134,8 +120,6 @@ typedef struct
 	uint8_t ScanMode;	/*Scanning mode,   0  Single-ended input  8 channel�� 1 Differential input  4 channel*/
 }ADS1256_VAR_T;
 
-
-
 /*Register definition�� Table 23. Register Map --- ADS1256 datasheet Page 30*/
 enum
 {
@@ -172,7 +156,6 @@ enum
 	CMD_RESET   = 0xFE, // Reset to Power-Up Values 1111   1110 (FEh)
 };
 
-
 ADS1256_VAR_T g_tADS1256;
 static const uint8_t s_tabDataRate[ADS1256_DRATE_MAX] =
 {
@@ -205,14 +188,10 @@ static void ADS1256_DelayDATA(void);
 static void ADS1256_WriteReg(uint8_t _RegID, uint8_t _RegValue);
 static uint8_t ADS1256_ReadReg(uint8_t _RegID);
 
-
-
-
 void  bsp_DelayUS(uint64_t micros)
 {
 		bcm2835_delayMicroseconds (micros);
 }
-
 /*
 *********************************************************************************************************
 *	name: ADS1256_ReadChipID
@@ -307,16 +286,14 @@ static void ADS1256_Send8Bit(uint8_t _data)
 	bcm2835_spi_transfer(_data);
 }
 
-/*
-*********************************************************************************************************
-*	name: ADS1256_DelayDATA
-*	function: delay
-*	parameter: NULL
-*	The return value: NULL
-*********************************************************************************************************
-*/
+
+
 static void ADS1256_DelayDATA(void)
 {
+	/*********************************************************************************************************
+	*	name: ADS1256_DelayDATA
+	*	function: delay
+	*********************************************************************************************************/
 	/*
 		Delay from last SCLK edge for DIN to first SCLK rising edge for DOUT: RDATA, RDATAC,RREG Commands
 		min  50   CLK = 50 * 0.13uS = 6.5uS
@@ -326,17 +303,17 @@ static void ADS1256_DelayDATA(void)
 
 
 
-/*
-*********************************************************************************************************
-*	name: ADS1256_WriteReg
-*	function: Write the corresponding register
-*	parameter: _RegID: register  ID
-*			 _RegValue: register Value
-*	The return value: NULL
-*********************************************************************************************************
-*/
+
+
 static void ADS1256_WriteReg(uint8_t _RegID, uint8_t _RegValue)
 {
+	/*********************************************************************************************************
+	*	name: ADS1256_WriteReg
+	*	function: Write the corresponding register
+	*	parameter: 	_RegID: register  ID
+	*			 				_RegValue: register Value
+	*	The return value: NULL
+	*********************************************************************************************************/
 	CS_0();	/* SPI  cs  = 0 */
 	ADS1256_Send8Bit(CMD_WREG | _RegID);	/*Write command register */
 	ADS1256_Send8Bit(0x00);		/*Write the register number */
@@ -345,16 +322,16 @@ static void ADS1256_WriteReg(uint8_t _RegID, uint8_t _RegValue)
 	CS_1();	/* SPI   cs = 1 */
 }
 
-/*
-*********************************************************************************************************
-*	name: ADS1256_ReadData
-*	function: read ADC value
-*	parameter: NULL
-*	The return value:  NULL
-*********************************************************************************************************
-*/
+
+
 static int32_t ADS1256_ReadData(void)
 {
+	/*********************************************************************************************************
+	*	name: ADS1256_ReadData
+	*	function: read ADC value
+	*	parameter: NULL
+	*	The return value:  NULL
+	*********************************************************************************************************/
 	uint32_t read = 0;
   static uint8_t buf[3];
 
@@ -385,40 +362,34 @@ static int32_t ADS1256_ReadData(void)
 }
 
 // -----------------------------------------------------------
-/*
-*********************************************************************************************************
-*	name: ADS1256_Config
-*	function: configurate the chip
-*	parameter: NULL
-*	The return value: NULL
-see datasheet ad1256.pdf p31
-*********************************************************************************************************
-*/
-/*
-*********************************************************************************************************
-*	name: ADS1256_Recive8Bit
-*	function: SPI bus receive function
-*	parameter: NULL
-*	The return value: NULL
-*********************************************************************************************************
-*/
+
+
 static uint8_t ADS1256_Receive8Bit(void)
 {
+
+	/**********************************************************************************************************
+	*	name: ADS1256_Recive8Bit
+	*	function: SPI bus receive function
+	*	parameter: NULL
+	*	The return value: NULL
+	*********************************************************************************************************/
+
 	uint8_t read = 0;
 	read = bcm2835_spi_transfer(0xff);
 	return read;
 }
 
-/*
-*********************************************************************************************************
-*	name: ADS1256_WriteCmd
-*	function: Sending a single byte order
-*	parameter: _cmd : command
-*	The return value: NULL
-*********************************************************************************************************
-*/
+
 static void ADS1256_WriteCmd(uint8_t _cmd)
 {
+
+	/*********************************************************************************************************
+	*	name: ADS1256_WriteCmd
+	*	function: Sending a single byte order
+	*	parameter: _cmd : command
+	*	The return value: NULL
+	*********************************************************************************************************/
+
 	CS_0();	/* SPI   cs = 0 */
 	ADS1256_Send8Bit(_cmd);
 	CS_1();	/* SPI  cs  = 1 */
@@ -427,6 +398,13 @@ static void ADS1256_WriteCmd(uint8_t _cmd)
 static void ADS1256_Config(void)
 {
 
+	/*********************************************************************************************************
+	*	name: ADS1256_Config
+	*	function: configurate the chip
+	*	parameter: NULL
+	*	The return value: NULL
+	see datasheet ad1256.pdf p31
+	*********************************************************************************************************/
 		ADS1256_WaitDRDY();
 
 		// Status register : ORDER = 0, Auto-Calibration --> ACAL = 1, buffer on --> BUFEN = 1
@@ -512,7 +490,7 @@ int  main()
 		bsp_DelayUS(5);
 		ADS1256_WriteCmd(CMD_RDATAC);
 
-		for (sample_counter = 0 ; sample_counter<2500 ; sample_counter++)
+		for (sample_counter = 0 ; sample_counter<500 ; sample_counter++)
 		{
 			//ADS1256_Send8Bit(CMD_WAKEUP);
 			while (DRDY_IS_LOW());
